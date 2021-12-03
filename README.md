@@ -1,4 +1,4 @@
-# Random Network Distillation
+# Random Network Distillation - ADDING LATENT FLOW
 #### Intrinsic Reward Graph with play
 | Venture             |  Montezuma's Revenge |
 :-------------------------:|:-------------------------:

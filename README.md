@@ -1,4 +1,4 @@
-# Random Network Distillation
+# Random Network Distillation WITH ACTION VECTOR
 #### Intrinsic Reward Graph with play
 | Venture             |  Montezuma's Revenge |
 :-------------------------:|:-------------------------:

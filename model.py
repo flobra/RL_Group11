@@ -5,7 +5,7 @@ import torch.optim as optim
 import numpy as np
 import math
 from torch.nn import init
-
+from encoder import make_encoder
 
 class NoisyLinear(nn.Module):
     """Factorised Gaussian NoisyNet"""
@@ -72,18 +72,29 @@ class Flatten(nn.Module):
 
 
 class CnnActorCriticNetwork(nn.Module):
-    def __init__(self, input_size, output_size, use_noisy_net=False):
+    def __init__(self, input_size, output_size, use_noisy_net=False, **kwargs):
         super(CnnActorCriticNetwork, self).__init__()
-
+        self.latent_flow = False
+        first_in_channels = 4
+        # TODO : need to seperate actor and critic encoders => obs_shape issue
+        if("latent_flow" in kwargs.keys()):
+            self.encoder = make_encoder(
+                kwargs[encoder_type], kwargs[obs_shape], kwargs[encoder_feature_dim], kwargs[num_layers],
+                kwargs[num_filters], output_logits=True, image_channel=kwargs[image_channel],
+            )
+            self.latent_flow = True
+            first_in_channels = self.encoder.feature_dim
+            
+        
         if use_noisy_net:
             print('use NoisyNet')
             linear = NoisyLinear
         else:
             linear = nn.Linear
-
+        
         self.feature = nn.Sequential(
             nn.Conv2d(
-                in_channels=4,
+                in_channels=first_in_channels,
                 out_channels=32,
                 kernel_size=8,
                 stride=4),
@@ -151,6 +162,8 @@ class CnnActorCriticNetwork(nn.Module):
                 self.extra_layer[i].bias.data.zero_()
 
     def forward(self, state):
+        if(self.latent_flow):
+            state = self.encoder(state)
         x = self.feature(state)
         policy = self.actor(x)
         value_ext = self.critic_ext(self.extra_layer(x) + x)

@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from torch.distributions.categorical import Categorical
 
-from model import CnnActorCriticNetwork, RNDModel
+from model import CnnActorCriticNetwork, RNDModel, RNDModel_Action
 from utils import global_grad_norm_
 
 
@@ -46,8 +46,9 @@ class RNDAgent(object):
         self.update_proportion = update_proportion
         self.device = torch.device('cuda' if use_cuda else 'cpu')
 
-        self.rnd = RNDModel(input_size, output_size)
-        self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor.parameters()),
+        # self.rnd = RNDModel(input_size, output_size)
+        self.rnd = RNDModel_Action(input_size, output_size)
+        self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor_convs.parameters()) + list(self.rnd.predictor_fcs.parameters()),
                                     lr=learning_rate)
         self.rnd = self.rnd.to(self.device)
 
@@ -68,11 +69,13 @@ class RNDAgent(object):
         r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
         return (p.cumsum(axis=axis) > r).argmax(axis=axis)
 
-    def compute_intrinsic_reward(self, next_obs):
+    def compute_intrinsic_reward(self, next_obs, actions):
         next_obs = torch.FloatTensor(next_obs).to(self.device)
 
-        target_next_feature = self.rnd.target(next_obs)
-        predict_next_feature = self.rnd.predictor(next_obs)
+        # target_next_feature = self.rnd.target(next_obs)
+        # predict_next_feature = self.rnd.predictor(next_obs)
+        target_next_feature, predict_next_feature = self.rnd(next_obs, actions)
+
         intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
 
         return intrinsic_reward.data.cpu().numpy()
@@ -103,7 +106,17 @@ class RNDAgent(object):
 
                 # --------------------------------------------------------------------------------
                 # for Curiosity-driven(Random Network Distillation)
-                predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch[sample_idx])
+
+                # print(next_obs_batch.shape) # torch.Size([16384, 1, 84, 84])
+                # print(y_batch.shape) # torch.Size([16384])
+                next_obs_batch_sampled = next_obs_batch[sample_idx]
+                action_sampled = y_batch[sample_idx]
+                # print(next_obs_batch_sampled.shape) # [4096, 1, 84, 84]
+                # print(action_sampled.shape) # [4096]
+
+                # predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch[sample_idx])
+                predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch_sampled, action_sampled)
+                # print(predict_next_state_feature.shape) # [4096, 512]
 
                 forward_loss = forward_mse(predict_next_state_feature, target_next_state_feature.detach()).mean(-1)
                 # Proportion of exp used for predictor update
@@ -135,5 +148,5 @@ class RNDAgent(object):
                 self.optimizer.zero_grad()
                 loss = actor_loss + 0.5 * critic_loss - self.ent_coef * entropy + forward_loss
                 loss.backward()
-                global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor.parameters()))
+                global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor_convs.parameters())+list(self.rnd.predictor_fcs.parameters()))
                 self.optimizer.step()

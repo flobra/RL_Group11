@@ -233,3 +233,103 @@ class RNDModel(nn.Module):
         predict_feature = self.predictor(next_obs)
 
         return predict_feature, target_feature
+
+class RNDModel_Action(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(RNDModel_Action, self).__init__()
+
+        self.input_size = input_size
+        self.output_size = output_size
+
+        feature_output = 7 * 7 * 64 #
+        
+        self.predictor_convs = nn.Sequential(
+            nn.Conv2d(
+                in_channels=1,
+                out_channels=32,
+                kernel_size=8,
+                stride=4),
+            nn.LeakyReLU(),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=4,
+                stride=2),
+            nn.LeakyReLU(),
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1),
+            nn.LeakyReLU(),
+            Flatten(),
+        )
+
+        self.predictor_fcs = nn.Sequential(
+            nn.Linear(feature_output + self.output_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512)
+        )
+
+        self.target_convs = nn.Sequential(
+            nn.Conv2d(
+                in_channels=1,
+                out_channels=32,
+                kernel_size=8,
+                stride=4),
+            nn.LeakyReLU(),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=4,
+                stride=2),
+            nn.LeakyReLU(),
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1),
+            nn.LeakyReLU(),
+            Flatten(),
+        )
+
+        self.target_fcs = nn.Sequential(
+            nn.Linear(feature_output + self.output_size, 512)
+        )
+
+        for p in self.modules():
+            if isinstance(p, nn.Conv2d):
+                init.orthogonal_(p.weight, np.sqrt(2))
+                p.bias.data.zero_()
+
+            if isinstance(p, nn.Linear):
+                init.orthogonal_(p.weight, np.sqrt(2))
+                p.bias.data.zero_()
+
+        # no update
+        for param in self.target_convs.parameters():
+            param.requires_grad = False
+
+        for param in self.target_fcs.parameters():
+            param.requires_grad = False
+
+    def forward(self, next_obs, actions):
+
+        if isinstance(actions,(np.ndarray)): actions = actions.astype(np.int64)
+        index = torch.tensor(actions.reshape((-1,1))).cuda()
+        src = torch.ones(actions.shape[0],1).cuda()
+
+        actions = torch.zeros(actions.shape[0], self.output_size).cuda()
+        actions = actions.scatter_(0, index, src)
+
+        target_feature = self.target_convs(next_obs)
+        target_feature = torch.cat((target_feature, actions.reshape(target_feature.size(0),self.output_size)), 1)
+        target_feature = self.target_fcs(target_feature)
+
+        predict_feature = self.predictor_convs(next_obs)
+        predict_feature = torch.cat((predict_feature, actions.reshape(predict_feature.size(0),self.output_size)), 1)
+        predict_feature = self.predictor_fcs(predict_feature)
+
+        return predict_feature, target_feature

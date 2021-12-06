@@ -34,6 +34,7 @@ def main():
     model_path = 'models/{}.model'.format(env_id)
     predictor_path = 'models/{}.pred'.format(env_id)
     target_path = 'models/{}.target'.format(env_id)
+    ## ?
 
     writer = SummaryWriter()
 
@@ -131,7 +132,9 @@ def main():
     # normalize obs
     print('Start to initailize observation normalization parameter.....')
     next_obs = []
-    for step in range(num_step * pre_obs_norm_step):
+    # for step in range(num_step * pre_obs_norm_step):
+    for step in range(num_step):
+
         actions = np.random.randint(0, output_size, size=(num_worker,))
 
         for parent_conn, action in zip(parent_conns, actions):
@@ -154,10 +157,13 @@ def main():
         global_update += 1
 
         # Step 1. n-step rollout
-        for _ in range(num_step):
-            actions, value_ext, value_int, policy = agent.get_action(np.float32(states) / 255.)
+        for _ in range(num_step): # 128
+            actions, value_ext, value_int, policy = agent.get_action(np.float32(states) / 255.) # 처음에 zero
+            # print(len(actions)) # 128
+            # print(policy.shape) => 128, 12
 
-            for parent_conn, action in zip(parent_conns, actions):
+            for parent_conn, action in zip(parent_conns, actions): # 128개 worker(env)에 각각 sample한 action 넣어줌
+                # print(action) # 7
                 parent_conn.send(action)
 
             next_states, rewards, dones, real_dones, log_rewards, next_obs = [], [], [], [], [], []
@@ -177,8 +183,10 @@ def main():
             next_obs = np.stack(next_obs)
 
             # total reward = int reward + ext Reward
+            # intrinsic_reward = agent.compute_intrinsic_reward(
+            #     ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
             intrinsic_reward = agent.compute_intrinsic_reward(
-                ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
+                ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5), actions)
             intrinsic_reward = np.hstack(intrinsic_reward)
             sample_i_rall += intrinsic_reward[sample_env_idx]
 

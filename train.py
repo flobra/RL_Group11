@@ -4,7 +4,7 @@ from utils import *
 from config import *
 from torch.multiprocessing import Pipe
 
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
 
@@ -22,6 +22,7 @@ def main():
     else:
         raise NotImplementedError
     input_size = env.observation_space.shape  # 4
+    print(input_size)
     output_size = env.action_space.n  # 2
 
     if 'Breakout' in env_id:
@@ -91,7 +92,11 @@ def main():
         ppo_eps=ppo_eps,
         use_cuda=use_cuda,
         use_gae=use_gae,
-        use_noisy_net=use_noisy_net
+        use_noisy_net=use_noisy_net,
+        latent_flow = default_config.getboolean('UseLatentFlow'),
+        EncoderFeatureDim = int(default_config['EncoderFeatureDim']),
+        EncoderNumLayers = int(default_config['EncoderNumLayers']),
+        EncoderNumFilters = int(default_config['EncoderNumFilters']),
     )
 
     if is_load_model:

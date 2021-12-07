@@ -162,6 +162,7 @@ class PixelDelta2DEncoder(nn.Module):
         assert len(obs_shape) == 3
         self.obs_shape = obs_shape
         self.feature_dim = feature_dim
+        self.num_filters = num_filters
         self.num_layers = num_layers
         self.image_channel = image_channel
 
@@ -195,7 +196,6 @@ class PixelDelta2DEncoder(nn.Module):
     def forward_conv(self, obs,flatten=True):
         if obs.max() > 1.:
             obs = obs / 255.
-
         time_step = obs.shape[1] // self.image_channel
         obs = obs.view(obs.shape[0], time_step, self.image_channel, obs.shape[-2], obs.shape[-1])
         obs = obs.view(obs.shape[0]*time_step, self.image_channel, obs.shape[-2], obs.shape[-1])
@@ -212,7 +212,6 @@ class PixelDelta2DEncoder(nn.Module):
             self.outputs['conv%s' % (i + 1)] = conv
 
         conv = conv.view(conv.size(0)//time_step, time_step, conv.size(1), conv.size(2), conv.size(3))
-
         conv_current = conv[:, 1:, :, :, :]
         conv_prev = conv_current - conv[:, :time_step-1, :, :, :].detach()
         conv = torch.cat([conv_current, conv_prev], axis=1)

@@ -78,12 +78,14 @@ class CnnActorCriticNetwork(nn.Module):
         first_in_channels = 4
         # TODO : need to seperate actor and critic encoders => obs_shape issue
         if("latent_flow" in kwargs.keys()):
-            self.encoder = make_encoder(
-                kwargs[encoder_type], kwargs[obs_shape], kwargs[encoder_feature_dim], kwargs[num_layers],
-                kwargs[num_filters], output_logits=True, image_channel=kwargs[image_channel],
-            )
-            self.latent_flow = True
-            first_in_channels = self.encoder.feature_dim
+            if(kwargs["latent_flow"]):
+                print("using latent_flow ", input_size)
+                self.encoder = make_encoder(
+                    "pixel_delta2d", [4,84,84], kwargs["EncoderFeatureDim"], kwargs["EncoderNumLayers"],
+                    kwargs["EncoderNumFilters"], output_logits=True, image_channel=1,
+                )
+                self.latent_flow = True
+                first_in_channels = self.encoder.num_filters * 6
             
         
         if use_noisy_net:
@@ -163,8 +165,9 @@ class CnnActorCriticNetwork(nn.Module):
 
     def forward(self, state):
         if(self.latent_flow):
-            state = self.encoder(state)
-        x = self.feature(state)
+            x = self.encoder.forward(state)
+        else:
+            x = self.feature(state)
         policy = self.actor(x)
         value_ext = self.critic_ext(self.extra_layer(x) + x)
         value_int = self.critic_int(self.extra_layer(x) + x)

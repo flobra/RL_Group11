@@ -29,8 +29,15 @@ class RNDAgent(object):
             update_proportion=0.25,
             use_gae=True,
             use_cuda=False,
-            use_noisy_net=False, **kwargs):
-        self.model = CnnActorCriticNetwork(input_size, output_size, use_noisy_net, **kwargs)
+            use_noisy_net=False,
+            latent_flow = False,
+            encoderFeatureDim = 448,
+            encoderNumLayers = 4,
+            encoderNumFilters = 32
+            ):
+        self.model = CnnActorCriticNetwork(input_size, output_size, use_noisy_net, 
+                                           latent_flow, encoderFeatureDim, encoderNumLayers, 
+                                           encoderNumFilters)
         self.num_env = num_env
         self.output_size = output_size
         self.input_size = input_size
@@ -45,9 +52,13 @@ class RNDAgent(object):
         self.clip_grad_norm = clip_grad_norm
         self.update_proportion = update_proportion
         self.device = torch.device('cuda' if use_cuda else 'cpu')
+        self.latent_flow = latent_flow
 
-        self.rnd = RNDModel(input_size, output_size)
-        self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor.parameters()),
+        self.rnd = RNDModel(input_size, output_size, latent_flow, 
+                            encoderFeatureDim, encoderNumLayers, encoderNumFilters)
+        self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor_conv.parameters()) + 
+                                    list(self.rnd.predictor_linear.parameters()) + 
+                                    list(self.rnd.predictor_encoder.parameters()),
                                     lr=learning_rate)
         self.rnd = self.rnd.to(self.device)
 
@@ -68,11 +79,21 @@ class RNDAgent(object):
         r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
         return (p.cumsum(axis=axis) > r).argmax(axis=axis)
 
-    def compute_intrinsic_reward(self, next_obs):
-        next_obs = torch.FloatTensor(next_obs).to(self.device)
+    def compute_intrinsic_reward(self, states):
+        states = torch.FloatTensor(states).to(self.device)
 
-        target_next_feature = self.rnd.target(next_obs)
-        predict_next_feature = self.rnd.predictor(next_obs)
+        #TODO: Is it okay to just call the forward function here?
+
+        if self.latent_flow:
+            target_next_feature = self.rnd.target_encoder(states)
+            predict_next_feature = self.rnd.predictor_encoder(states)
+        else:
+            target_next_feature = self.rnd.target_conv(states)
+            predict_next_feature = self.rnd.predictor_conv(states)
+        
+        target_next_feature = self.rnd.target_linear(target_next_feature)
+        predict_next_feature = self.rnd.predictor_linear(predict_next_feature)
+
         intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
 
         return intrinsic_reward.data.cpu().numpy()
@@ -135,5 +156,7 @@ class RNDAgent(object):
                 self.optimizer.zero_grad()
                 loss = actor_loss + 0.5 * critic_loss - self.ent_coef * entropy + forward_loss
                 loss.backward()
-                global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor.parameters()))
+                global_grad_norm_(list(self.model.parameters()) + list(self.rnd.predictor_conv.parameters()) + 
+                                    list(self.rnd.predictor_linear.parameters()) + 
+                                    list(self.rnd.predictor_encoder.parameters()))
                 self.optimizer.step()

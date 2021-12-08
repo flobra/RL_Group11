@@ -68,6 +68,11 @@ def main():
     pre_obs_norm_step = int(default_config['ObsNormStep'])
     discounted_reward = RewardForwardFilter(int_gamma)
 
+    latent_flow = default_config.getboolean('UseLatentFlow')
+    encoderFeatureDim = int(default_config['EncoderFeatureDim'])
+    encoderNumLayers = int(default_config['EncoderNumLayers'])
+    encoderNumFilters = int(default_config['EncoderNumFilters'])
+
     agent = RNDAgent
 
     if default_config['EnvType'] == 'atari':
@@ -93,10 +98,10 @@ def main():
         use_cuda=use_cuda,
         use_gae=use_gae,
         use_noisy_net=use_noisy_net,
-        latent_flow = default_config.getboolean('UseLatentFlow'),
-        EncoderFeatureDim = int(default_config['EncoderFeatureDim']),
-        EncoderNumLayers = int(default_config['EncoderNumLayers']),
-        EncoderNumFilters = int(default_config['EncoderNumFilters']),
+        latent_flow = latent_flow,
+        encoderFeatureDim = encoderFeatureDim,
+        encoderNumLayers = encoderNumLayers,
+        encoderNumFilters = encoderNumFilters
     )
 
     if is_load_model:
@@ -183,7 +188,7 @@ def main():
 
             # total reward = int reward + ext Reward
             intrinsic_reward = agent.compute_intrinsic_reward(
-                ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
+                ((states - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
             intrinsic_reward = np.hstack(intrinsic_reward)
             sample_i_rall += intrinsic_reward[sample_env_idx]
 
@@ -272,7 +277,7 @@ def main():
 
         # Step 5. Training!
         agent.train_model(np.float32(total_state) / 255., ext_target, int_target, total_action,
-                          total_adv, ((total_next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5),
+                          total_adv, ((total_state - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5),
                           total_policy)
 
         if global_step % (num_worker * num_step * 100) == 0:

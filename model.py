@@ -72,20 +72,21 @@ class Flatten(nn.Module):
 
 
 class CnnActorCriticNetwork(nn.Module):
-    def __init__(self, input_size, output_size, use_noisy_net=False, **kwargs):
+    def __init__(self, input_size, output_size, use_noisy_net=False, latent_flow=False, 
+                 encoderFeatureDim = 448, encoderNumLayers = 4, encoderNumFilters = 32):
+
         super(CnnActorCriticNetwork, self).__init__()
-        self.latent_flow = False
+        self.latent_flow = latent_flow
         first_in_channels = 4
+
         # TODO : need to seperate actor and critic encoders => obs_shape issue
-        if("latent_flow" in kwargs.keys()):
-            if(kwargs["latent_flow"]):
-                print("using latent_flow ", input_size)
-                self.encoder = make_encoder(
-                    "pixel_delta2d", [4,84,84], kwargs["EncoderFeatureDim"], kwargs["EncoderNumLayers"],
-                    kwargs["EncoderNumFilters"], output_logits=True, image_channel=1,
-                )
-                self.latent_flow = True
-                first_in_channels = self.encoder.num_filters * 6
+        if(self.latent_flow):
+            print("using latent_flow ", input_size)
+            self.encoder = make_encoder(
+                "pixel_delta2d", [4,84,84], encoderFeatureDim, encoderNumLayers,
+                encoderNumFilters, output_logits=True, image_channel=1,
+            )
+            first_in_channels = self.encoder.num_filters * 6
             
         
         if use_noisy_net:
@@ -164,6 +165,7 @@ class CnnActorCriticNetwork(nn.Module):
                 self.extra_layer[i].bias.data.zero_()
 
     def forward(self, state):
+
         if(self.latent_flow):
             x = self.encoder.forward(state)
         else:
@@ -175,16 +177,30 @@ class CnnActorCriticNetwork(nn.Module):
 
 
 class RNDModel(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, latent_flow=False, 
+                 encoderFeatureDim = 448, encoderNumLayers = 4, encoderNumFilters = 32):
         super(RNDModel, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
+        self.latent_flow = latent_flow
+        first_in_channels = 4
+
+        if( self.latent_flow):
+            self.target_encoder = make_encoder(
+                "pixel_delta2d", [4,84,84], 512, encoderNumLayers,
+                encoderNumFilters, output_logits=True, image_channel=1,
+            )
+            self.predictor_encoder = make_encoder(
+                "pixel_delta2d", [4,84,84], 512, encoderNumLayers,
+                encoderNumFilters, output_logits=True, image_channel=1,
+            )
+            first_in_channels = self.target_encoder.num_filters * 6
 
         feature_output = 7 * 7 * 64
-        self.predictor = nn.Sequential(
+        self.predictor_conv = nn.Sequential(
             nn.Conv2d(
-                in_channels=1,
+                in_channels=first_in_channels,
                 out_channels=32,
                 kernel_size=8,
                 stride=4),
@@ -201,17 +217,20 @@ class RNDModel(nn.Module):
                 kernel_size=3,
                 stride=1),
             nn.LeakyReLU(),
-            Flatten(),
-            nn.Linear(feature_output, 512),
+            Flatten()
+        )
+
+        self.predictor_linear = nn.Sequential(
+            nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 512)
         )
 
-        self.target = nn.Sequential(
+        self.target_conv = nn.Sequential(
             nn.Conv2d(
-                in_channels=1,
+                in_channels=first_in_channels,
                 out_channels=32,
                 kernel_size=8,
                 stride=4),
@@ -228,8 +247,11 @@ class RNDModel(nn.Module):
                 kernel_size=3,
                 stride=1),
             nn.LeakyReLU(),
-            Flatten(),
-            nn.Linear(feature_output, 512)
+            Flatten()
+        )
+
+        self.target_linear = nn.Sequential(
+            nn.Linear(512, 512)
         )
 
         for p in self.modules():
@@ -241,11 +263,25 @@ class RNDModel(nn.Module):
                 init.orthogonal_(p.weight, np.sqrt(2))
                 p.bias.data.zero_()
 
-        for param in self.target.parameters():
+        for param in self.target_conv.parameters():
+            param.requires_grad = False
+
+        for param in self.target_linear.parameters():
+            param.requires_grad = False
+
+        for param in self.target_encoder.parameters():
             param.requires_grad = False
 
     def forward(self, next_obs):
-        target_feature = self.target(next_obs)
-        predict_feature = self.predictor(next_obs)
+        
+        if(self.latent_flow):
+            target_feature = self.target_encoder(next_obs)
+            predict_feature = self.predictor_encoder(next_obs)
+        else:
+            target_feature = self.target_conv(next_obs) 
+            predict_feature = self.predictor_conv(next_obs)
+
+        target_feature = self.target_linear(target_feature)
+        predict_feature = self.predictor_linear(predict_feature)
 
         return predict_feature, target_feature

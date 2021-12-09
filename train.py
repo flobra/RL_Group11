@@ -39,6 +39,11 @@ def main():
     writer = SummaryWriter()
 
     use_cuda = default_config.getboolean('UseGPU')
+    if use_cuda:
+        num_gpu = int(default_config['numGPU'])
+    else:
+        num_gpu = None
+
     use_gae = default_config.getboolean('UseGAE')
     use_noisy_net = default_config.getboolean('UseNoisyNet')
 
@@ -95,6 +100,7 @@ def main():
         batch_size=batch_size,
         ppo_eps=ppo_eps,
         use_cuda=use_cuda,
+        num_gpu = num_gpu,
         use_gae=use_gae,
         use_noisy_net=use_noisy_net,
         actionVector_opt=actionVector_opt,

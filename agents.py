@@ -29,6 +29,7 @@ class RNDAgent(object):
             update_proportion=0.25,
             use_gae=True,
             use_cuda=False,
+            num_gpu=None,
             use_noisy_net=False,
             actionVector_opt = 0,
             bn = False):
@@ -46,7 +47,11 @@ class RNDAgent(object):
         self.ppo_eps = ppo_eps
         self.clip_grad_norm = clip_grad_norm
         self.update_proportion = update_proportion
-        self.device = torch.device('cuda' if use_cuda else 'cpu')
+        
+        # self.device = torch.device('cuda' if use_cuda else 'cpu')
+        self.device = torch.device(f'cuda:{num_gpu}' if use_cuda else 'cpu')
+        torch.cuda.set_device(self.device)
+        if use_cuda: print('gpu:', torch.cuda.current_device())
 
         self.actionVector_opt = actionVector_opt
         self.actionVector_bn = bn

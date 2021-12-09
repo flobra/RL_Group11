@@ -350,7 +350,7 @@ class RNDModel_Action(nn.Module):
                     nn.Linear(feature_output + self.output_size, 512)
                 )
 
-        elif actionVector_opt == 2:
+        elif actionVector_opt == 3:
             if bn:
                 self.predictor_fc1 = nn.Sequential(
                     Flatten(),

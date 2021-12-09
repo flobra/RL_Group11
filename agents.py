@@ -138,7 +138,11 @@ class RNDAgent(object):
                 # print(action_sampled.shape) # [4096]
 
                 # predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch[sample_idx])
-                predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch_sampled, action_sampled)
+                if self.actionVector_opt:
+                    predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch_sampled, action_sampled)
+                else:
+                    predict_next_state_feature, target_next_state_feature = self.rnd(next_obs_batch_sampled)
+
                 # print(predict_next_state_feature.shape) # [4096, 512]
 
                 forward_loss = forward_mse(predict_next_state_feature, target_next_state_feature.detach()).mean(-1)

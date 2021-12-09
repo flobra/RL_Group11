@@ -323,7 +323,7 @@ class RNDModel_Action(nn.Module):
             if bn:
                 self.predictor_fc1 = nn.Sequential(
                     Flatten(),
-                    nn.Linear(feature_output + self.output_size, 256),
+                    nn.Linear(feature_output, 256),
                     nn.ReLU(),
                 )
                 self.predictor_fc2 = nn.Sequential(
@@ -338,7 +338,7 @@ class RNDModel_Action(nn.Module):
             else:
                 self.predictor_fc1 = nn.Sequential(
                     Flatten(),
-                    nn.Linear(feature_output + self.output_size, 256),
+                    nn.Linear(feature_output, 256),
                     nn.ReLU()
                 )
                 self.predictor_fc2 = nn.Sequential(
@@ -354,7 +354,7 @@ class RNDModel_Action(nn.Module):
             if bn:
                 self.predictor_fc1 = nn.Sequential(
                     Flatten(),
-                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.Linear(feature_output, 512),
                     nn.ReLU(),
                     nn.Linear(512, 256),
                     nn.ReLU()
@@ -369,7 +369,7 @@ class RNDModel_Action(nn.Module):
             else:
                 self.predictor_fc1 = nn.Sequential(
                     Flatten(),
-                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.Linear(feature_output, 512),
                     nn.ReLU(),
                     nn.Linear(512, 256),
                     nn.ReLU()

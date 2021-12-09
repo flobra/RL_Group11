@@ -262,7 +262,6 @@ class RNDModel_Action(nn.Module):
                 kernel_size=3,
                 stride=1),
             nn.LeakyReLU(),
-            Flatten(),
         )
 
         self.target_convs = nn.Sequential(
@@ -287,24 +286,63 @@ class RNDModel_Action(nn.Module):
             Flatten(),
         )
 
+        # last : no activation
+
         if actionVector_opt == 1:
             if bn:
-                self.predictor_fcs = nn.Sequential(
-                    nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten()
+                )
+                self.predictor_fc2 = nn.Sequential(
+                    nn.BatchNorm1d(num_features = feature_output + self.output_size), ## bn
                     nn.Linear(feature_output + self.output_size, 512),
                     nn.ReLU(),
                     nn.Linear(512, 512),
                     nn.ReLU(),
-                    nn.Linear(512, 512)
+                    nn.Linear(512, 512) # last
                 )
                 self.target_fcs = nn.Sequential(
                     nn.Linear(feature_output + self.output_size, 512)
                 )
             else:
-                self.predictor_fcs = nn.Sequential(
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten()
+                )
+                self.predictor_fc2 = nn.Sequential(
                     nn.Linear(feature_output + self.output_size, 512),
                     nn.ReLU(),
                     nn.Linear(512, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512) # last
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
+
+        elif actionVector_opt == 2:
+            if bn:
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten(),
+                    nn.Linear(feature_output + self.output_size, 256),
+                    nn.ReLU(),
+                )
+                self.predictor_fc2 = nn.Sequential(
+                    nn.BatchNorm1d(num_features = 256 + self.output_size), ## bn
+                    nn.Linear(256 + self.output_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512) # last
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
+            else:
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten(),
+                    nn.Linear(feature_output + self.output_size, 256),
+                    nn.ReLU()
+                )
+                self.predictor_fc2 = nn.Sequential(
+                    nn.Linear(256 + self.output_size, 512),
                     nn.ReLU(),
                     nn.Linear(512, 512)
                 )
@@ -312,55 +350,36 @@ class RNDModel_Action(nn.Module):
                     nn.Linear(feature_output + self.output_size, 512)
                 )
 
-        # elif actionVector_opt == 2:
-        #     if bn:
-        #         self.predictor_fcs = nn.Sequential(
-        #             nn.Linear(feature_output, 256),
-        #             nn.ReLU(),
-        #             nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
-        #             nn.Linear(256 + self.output_size, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512)
-        #         )
-        #         self.target_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512)
-        #         )
-        #     else:
-        #         self.predictor_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512)
-        #         )
-        #         self.target_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512)
-        #         )
-
-        # elif actionVector_opt == 3:
-        #     if bn:
-        #         self.predictor_fcs = nn.Sequential(
-        #             nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
-        #             nn.Linear(feature_output + self.output_size, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512)
-        #         )
-        #         self.target_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512)
-        #         )
-        #     else:
-        #         self.predictor_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512),
-        #             nn.ReLU(),
-        #             nn.Linear(512, 512)
-        #         )
-        #         self.target_fcs = nn.Sequential(
-        #             nn.Linear(feature_output + self.output_size, 512)
-        #         )
+        elif actionVector_opt == 2:
+            if bn:
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten(),
+                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 256),
+                    nn.ReLU()
+                )
+                self.predictor_fc2 = nn.Sequential(
+                    nn.BatchNorm1d(num_features = 256 + self.output_size), ## bn
+                    nn.Linear(256 + self.output_size, 512)
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
+            else:
+                self.predictor_fc1 = nn.Sequential(
+                    Flatten(),
+                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 256),
+                    nn.ReLU()
+                )
+                self.predictor_fc2 = nn.Sequential(
+                    nn.Linear(256 + self.output_size, 512)
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
 
         for p in self.modules():
             if isinstance(p, nn.Conv2d):
@@ -392,7 +411,8 @@ class RNDModel_Action(nn.Module):
         target_feature = self.target_fcs(target_feature)
 
         predict_feature = self.predictor_convs(next_obs)
+        predict_feature = self.predictor_fc1(predict_feature)
         predict_feature = torch.cat((predict_feature, actions.reshape(predict_feature.size(0),self.output_size)), 1)
-        predict_feature = self.predictor_fcs(predict_feature)
+        predict_feature = self.predictor_fc2(predict_feature)
 
         return predict_feature, target_feature

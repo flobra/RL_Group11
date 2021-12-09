@@ -29,8 +29,9 @@ class RNDAgent(object):
             update_proportion=0.25,
             use_gae=True,
             use_cuda=False,
-            use_noisy_net=False
-            actionVector_opt = 0):
+            use_noisy_net=False,
+            actionVector_opt = 0,
+            bn = False):
         self.model = CnnActorCriticNetwork(input_size, output_size, use_noisy_net)
         self.num_env = num_env
         self.output_size = output_size
@@ -47,15 +48,19 @@ class RNDAgent(object):
         self.update_proportion = update_proportion
         self.device = torch.device('cuda' if use_cuda else 'cpu')
 
+        self.actionVector_opt = actionVector_opt
+        self.actionVector_bn = bn
+
         if actionVector_opt:
-            self.rnd = RNDModel_Action(input_size, output_size, actionVector_opt)
-            self.rnd = RNDModel(input_size, output_size)
+            self.rnd = RNDModel_Action(input_size, output_size, self.actionVector_opt, self.actionVector_bn)
+            self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor_convs.parameters()) + list(self.rnd.predictor_fc1.parameters()) + list(self.rnd.predictor_fc2.parameters()),
+                                    lr=learning_rate)
         else:
             self.rnd = RNDModel(input_size, output_size) # original RND model
-        self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor_convs.parameters()) + list(self.rnd.predictor_fcs.parameters()),
+            self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor.parameters()),
                                     lr=learning_rate)
+            
         self.rnd = self.rnd.to(self.device)
-
         self.model = self.model.to(self.device)
 
     def get_action(self, state):
@@ -87,7 +92,7 @@ class RNDAgent(object):
     def compute_intrinsic_reward_actions(self, next_obs, actions):
 
         next_obs = torch.FloatTensor(next_obs).to(self.device)
-        target_next_feature, predict_next_feature = self.rnd(next_obs, actions)
+        target_next_feature, predict_next_feature = self.rnd(next_obs, actions) # 
         intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
 
         return intrinsic_reward.data.cpu().numpy()
@@ -161,5 +166,8 @@ class RNDAgent(object):
                 self.optimizer.zero_grad()
                 loss = actor_loss + 0.5 * critic_loss - self.ent_coef * entropy + forward_loss
                 loss.backward()
-                global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor_convs.parameters())+list(self.rnd.predictor_fcs.parameters()))
+                if self.actionVector_opt:
+                    global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor_convs.parameters())+list(self.rnd.predictor_fc1.parameters()) + list(self.rnd.predictor_fc2.parameters()))
+                else:
+                    global_grad_norm_(list(self.model.parameters())+list(self.rnd.predictor.parameters()))
                 self.optimizer.step()

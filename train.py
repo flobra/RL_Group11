@@ -69,6 +69,8 @@ def main():
     discounted_reward = RewardForwardFilter(int_gamma)
 
     actionVector_opt = int(default_config['actionVector_opt'])
+    actionVector_bn = default_config.getboolean('actionVector_bn')
+
 
     agent = RNDAgent
 
@@ -95,8 +97,11 @@ def main():
         use_cuda=use_cuda,
         use_gae=use_gae,
         use_noisy_net=use_noisy_net,
-        actionVector_opt
+        actionVector_opt=actionVector_opt,
+        bn = actionVector_bn
     )
+
+
 
     # assume: is_load_model = False
     if is_load_model:
@@ -286,7 +291,8 @@ def main():
             torch.save(agent.model.state_dict(), model_path)
             if actionVector_opt:
                 torch.save(agent.rnd.predictor_convs.state_dict(), predictor_path + '_conv')
-                torch.save(agent.rnd.predictor_fcs.state_dict(), predictor_path + '_fc')
+                torch.save(agent.rnd.predictor_fc1.state_dict(), predictor_path + '_fc1')
+                torch.save(agent.rnd.predictor_fc2.state_dict(), predictor_path + '_fc2')
                 torch.save(agent.rnd.target_convs.state_dict(), target_path + '_conv')
                 torch.save(agent.rnd.target_fcs.state_dict(), target_path + '_fc')
             else:

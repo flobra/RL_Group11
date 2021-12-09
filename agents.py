@@ -29,7 +29,8 @@ class RNDAgent(object):
             update_proportion=0.25,
             use_gae=True,
             use_cuda=False,
-            use_noisy_net=False):
+            use_noisy_net=False
+            actionVector_opt = 0):
         self.model = CnnActorCriticNetwork(input_size, output_size, use_noisy_net)
         self.num_env = num_env
         self.output_size = output_size
@@ -46,8 +47,11 @@ class RNDAgent(object):
         self.update_proportion = update_proportion
         self.device = torch.device('cuda' if use_cuda else 'cpu')
 
-        # self.rnd = RNDModel(input_size, output_size)
-        self.rnd = RNDModel_Action(input_size, output_size)
+        if actionVector_opt:
+            self.rnd = RNDModel_Action(input_size, output_size, actionVector_opt)
+            self.rnd = RNDModel(input_size, output_size)
+        else:
+            self.rnd = RNDModel(input_size, output_size) # original RND model
         self.optimizer = optim.Adam(list(self.model.parameters()) + list(self.rnd.predictor_convs.parameters()) + list(self.rnd.predictor_fcs.parameters()),
                                     lr=learning_rate)
         self.rnd = self.rnd.to(self.device)
@@ -69,16 +73,25 @@ class RNDAgent(object):
         r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
         return (p.cumsum(axis=axis) > r).argmax(axis=axis)
 
-    def compute_intrinsic_reward(self, next_obs, actions):
+
+    def compute_intrinsic_reward(self, next_obs):
         next_obs = torch.FloatTensor(next_obs).to(self.device)
 
-        # target_next_feature = self.rnd.target(next_obs)
-        # predict_next_feature = self.rnd.predictor(next_obs)
-        target_next_feature, predict_next_feature = self.rnd(next_obs, actions)
-
+        target_next_feature = self.rnd.target(next_obs)
+        predict_next_feature = self.rnd.predictor(next_obs)
         intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
 
         return intrinsic_reward.data.cpu().numpy()
+
+
+    def compute_intrinsic_reward_actions(self, next_obs, actions):
+
+        next_obs = torch.FloatTensor(next_obs).to(self.device)
+        target_next_feature, predict_next_feature = self.rnd(next_obs, actions)
+        intrinsic_reward = (target_next_feature - predict_next_feature).pow(2).sum(1) / 2
+
+        return intrinsic_reward.data.cpu().numpy()
+
 
     def train_model(self, s_batch, target_ext_batch, target_int_batch, y_batch, adv_batch, next_obs_batch, old_policy):
         s_batch = torch.FloatTensor(s_batch).to(self.device)

@@ -235,14 +235,14 @@ class RNDModel(nn.Module):
         return predict_feature, target_feature
 
 class RNDModel_Action(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, actionVector_opt, bn=0):
         super(RNDModel_Action, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
 
         feature_output = 7 * 7 * 64 #
-        
+
         self.predictor_convs = nn.Sequential(
             nn.Conv2d(
                 in_channels=1,
@@ -263,14 +263,6 @@ class RNDModel_Action(nn.Module):
                 stride=1),
             nn.LeakyReLU(),
             Flatten(),
-        )
-
-        self.predictor_fcs = nn.Sequential(
-            nn.Linear(feature_output + self.output_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512)
         )
 
         self.target_convs = nn.Sequential(
@@ -295,9 +287,80 @@ class RNDModel_Action(nn.Module):
             Flatten(),
         )
 
-        self.target_fcs = nn.Sequential(
-            nn.Linear(feature_output + self.output_size, 512)
-        )
+        if actionVector_opt == 1:
+            if bn:
+                self.predictor_fcs = nn.Sequential(
+                    nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
+                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512)
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
+            else:
+                self.predictor_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 512)
+                )
+                self.target_fcs = nn.Sequential(
+                    nn.Linear(feature_output + self.output_size, 512)
+                )
+
+        # elif actionVector_opt == 2:
+        #     if bn:
+        #         self.predictor_fcs = nn.Sequential(
+        #             nn.Linear(feature_output, 256),
+        #             nn.ReLU(),
+        #             nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
+        #             nn.Linear(256 + self.output_size, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512)
+        #         )
+        #         self.target_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512)
+        #         )
+        #     else:
+        #         self.predictor_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512)
+        #         )
+        #         self.target_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512)
+        #         )
+
+        # elif actionVector_opt == 3:
+        #     if bn:
+        #         self.predictor_fcs = nn.Sequential(
+        #             nn.BatchNorm1d(num_features = feature_output + self.output_size) ## bn
+        #             nn.Linear(feature_output + self.output_size, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512)
+        #         )
+        #         self.target_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512)
+        #         )
+        #     else:
+        #         self.predictor_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512),
+        #             nn.ReLU(),
+        #             nn.Linear(512, 512)
+        #         )
+        #         self.target_fcs = nn.Sequential(
+        #             nn.Linear(feature_output + self.output_size, 512)
+        #         )
 
         for p in self.modules():
             if isinstance(p, nn.Conv2d):

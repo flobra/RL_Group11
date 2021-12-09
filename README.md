@@ -40,7 +40,9 @@ python eval.py
 - Venture Env
 ![image](https://user-images.githubusercontent.com/23333028/48773457-c37cec00-ed0a-11e8-8c20-f9c35effc42d.png)
 
-
+## 5. Action Vector Option
+| Option|  Description |
+|:--:|:--:|
 
 References
 ----------

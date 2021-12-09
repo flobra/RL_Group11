@@ -68,6 +68,8 @@ def main():
     pre_obs_norm_step = int(default_config['ObsNormStep'])
     discounted_reward = RewardForwardFilter(int_gamma)
 
+    actionVector_opt = int(default_config['actionVector_opt'])
+
     agent = RNDAgent
 
     if default_config['EnvType'] == 'atari':
@@ -92,9 +94,11 @@ def main():
         ppo_eps=ppo_eps,
         use_cuda=use_cuda,
         use_gae=use_gae,
-        use_noisy_net=use_noisy_net
+        use_noisy_net=use_noisy_net,
+        actionVector_opt
     )
 
+    # assume: is_load_model = False
     if is_load_model:
         print('load model...')
         if use_cuda:
@@ -132,8 +136,7 @@ def main():
     # normalize obs
     print('Start to initailize observation normalization parameter.....')
     next_obs = []
-    # for step in range(num_step * pre_obs_norm_step):
-    for step in range(num_step):
+    for step in range(num_step * pre_obs_norm_step):
 
         actions = np.random.randint(0, output_size, size=(num_worker,))
 
@@ -159,11 +162,8 @@ def main():
         # Step 1. n-step rollout
         for _ in range(num_step): # 128
             actions, value_ext, value_int, policy = agent.get_action(np.float32(states) / 255.) # 처음에 zero
-            # print(len(actions)) # 128
-            # print(policy.shape) => 128, 12
 
             for parent_conn, action in zip(parent_conns, actions): # 128개 worker(env)에 각각 sample한 action 넣어줌
-                # print(action) # 7
                 parent_conn.send(action)
 
             next_states, rewards, dones, real_dones, log_rewards, next_obs = [], [], [], [], [], []
@@ -183,10 +183,13 @@ def main():
             next_obs = np.stack(next_obs)
 
             # total reward = int reward + ext Reward
-            # intrinsic_reward = agent.compute_intrinsic_reward(
-            #     ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
-            intrinsic_reward = agent.compute_intrinsic_reward(
+            if actionVector_opt:
+                intrinsic_reward = agent.compute_intrinsic_reward_actions(
                 ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5), actions)
+            else:
+                intrinsic_reward = agent.compute_intrinsic_reward(
+                    ((next_obs - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5))
+
             intrinsic_reward = np.hstack(intrinsic_reward)
             sample_i_rall += intrinsic_reward[sample_env_idx]
 
@@ -281,8 +284,14 @@ def main():
         if global_step % (num_worker * num_step * 100) == 0:
             print('Now Global Step :{}'.format(global_step))
             torch.save(agent.model.state_dict(), model_path)
-            torch.save(agent.rnd.predictor.state_dict(), predictor_path)
-            torch.save(agent.rnd.target.state_dict(), target_path)
+            if actionVector_opt:
+                torch.save(agent.rnd.predictor_convs.state_dict(), predictor_path + '_conv')
+                torch.save(agent.rnd.predictor_fcs.state_dict(), predictor_path + '_fc')
+                torch.save(agent.rnd.target_convs.state_dict(), target_path + '_conv')
+                torch.save(agent.rnd.target_fcs.state_dict(), target_path + '_fc')
+            else:
+                torch.save(agent.rnd.predictor.state_dict(), predictor_path)
+                torch.save(agent.rnd.target.state_dict(), target_path)
 
 
 if __name__ == '__main__':

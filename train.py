@@ -210,6 +210,8 @@ def main():
                 if real_dones[i]:
                     sample_episode += 1
                     writer.add_scalar('data/step', sample_step[i], sample_episode)
+                    writer.add_scalar('data/reward_per_epi', sample_rall[i], sample_episode)
+
                     sample_step[i] = 0
 
                     if(max_reward_current_frame < sample_rall[i]):
@@ -219,7 +221,6 @@ def main():
                     sample_i_rall = 0
 
             if(max_reward_change):
-                writer.add_scalar('data/reward_per_epi', max_reward_current_frame, sample_episode)
                 writer.add_scalar('data/reward_per_rollout', max_reward_current_frame, global_update)
 
         # calculate last next value

@@ -108,12 +108,10 @@ def main():
         print('load model...')
         if use_cuda:
             agent.model.load_state_dict(torch.load(model_path))
-            agent.rnd.predictor.load_state_dict(torch.load(predictor_path))
-            agent.rnd.target.load_state_dict(torch.load(target_path))
+            agent.rnd.load_state_dict(torch.load(predictor_path))
         else:
             agent.model.load_state_dict(torch.load(model_path, map_location='cpu'))
-            agent.rnd.predictor.load_state_dict(torch.load(predictor_path, map_location='cpu'))
-            agent.rnd.target.load_state_dict(torch.load(target_path, map_location='cpu'))
+            agent.rnd.load_state_dict(torch.load(predictor_path, map_location='cpu'))
         print('load finished!')
 
     works = []
@@ -131,8 +129,8 @@ def main():
     states = np.zeros([num_worker, 4, 84, 84])
 
     sample_episode = 0
-    sample_rall = 0
-    sample_step = 0
+    sample_rall = [0] * num_worker
+    sample_step = [0] * num_worker
     sample_env_idx = 0
     sample_i_rall = 0
     global_update = 0
@@ -163,6 +161,7 @@ def main():
         global_step += (num_worker * num_step)
         global_update += 1
 
+        max_reward_current_frame = -500
         # Step 1. n-step rollout
         for _ in range(num_step):
             actions, value_ext, value_int, policy = agent.get_action(np.float32(states) / 255.)
@@ -205,17 +204,27 @@ def main():
 
             states = next_states[:, :, :, :]
 
-            sample_rall += log_rewards[sample_env_idx]
+            for i in range(num_worker):
+                sample_rall[i] += log_rewards[i]
+                sample_step[i] += 1
 
-            sample_step += 1
-            if real_dones[sample_env_idx]:
-                sample_episode += 1
-                writer.add_scalar('data/reward_per_epi', sample_rall, sample_episode)
-                writer.add_scalar('data/reward_per_rollout', sample_rall, global_update)
-                writer.add_scalar('data/step', sample_step, sample_episode)
-                sample_rall = 0
-                sample_step = 0
-                sample_i_rall = 0
+            max_reward_change = False
+            for i in range(num_worker):
+                if real_dones[i]:
+                    sample_episode += 1
+                    writer.add_scalar('data/step', sample_step[i], sample_episode)
+                    writer.add_scalar('data/reward_per_epi', sample_rall[i], sample_episode)
+
+                    sample_step[i] = 0
+
+                    if(max_reward_current_frame < sample_rall[i]):
+                        max_reward_change = True
+                        max_reward_current_frame = sample_rall[i]
+                    sample_rall[i] = 0
+                    sample_i_rall = 0
+
+            if(max_reward_change):
+                writer.add_scalar('data/reward_per_rollout', max_reward_current_frame, global_update)
 
         # calculate last next value
         _, value_ext, value_int, _ = agent.get_action(np.float32(states) / 255.)
@@ -283,8 +292,8 @@ def main():
         if global_step % (num_worker * num_step * 100) == 0:
             print('Now Global Step :{}'.format(global_step))
             torch.save(agent.model.state_dict(), model_path)
-            torch.save(agent.rnd.predictor.state_dict(), predictor_path)
-            torch.save(agent.rnd.target.state_dict(), target_path)
+            torch.save(agent.rnd.state_dict(), predictor_path)
+            #torch.save(agent.rnd.target.state_dict(), target_path)
 
 
 if __name__ == '__main__':

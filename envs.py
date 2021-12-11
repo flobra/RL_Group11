@@ -165,8 +165,8 @@ class AtariEnvironment(Environment):
 
             s, reward, done, info = self.env.step(action)
 
-            if max_step_per_episode < self.steps:
-                done = True
+            #if max_step_per_episode < self.steps:
+            #    done = True
 
             log_reward = reward
             force_done = done
